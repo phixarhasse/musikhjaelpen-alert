@@ -5,7 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from dotenv import load_dotenv
-from playsound import playsound
+import requests
 import time
 import os
 
@@ -13,9 +13,8 @@ def main():
     print("Starting scraper...")
     load_dotenv()
     previous_value = int(os.environ.get("START_VALUE") or "0")
-    url = os.environ.get("URL") # URL to scrape
+    url = os.environ.get("MH_URL") # URL to scrape
     chrome_driver_path = os.environ.get("CHROME_DRIVER_PATH") # Path to ChromeDriver executable
-    sound_file = os.environ.get("NOTIFICATION_SOUND_FILE_PATH")
 
     # Set up Chrome options
     chrome_options = Options()
@@ -44,20 +43,16 @@ def main():
                     total_text = charity_total_element.text[:-2].replace(' ', '')
                     current_value = int(total_text)
                     if current_value > previous_value:
-                        print(f"-----> SOMEONE DONATED {current_value-previous_value} kr! HURRAY!")
+                        print(f"-----> SOMEONE DONATED {current_value-previous_value} kr!")
                         previous_value = current_value
-                        if sound_file:
-                            playsound(sound_file) # Play notification sound
-
-                    # TODO: Add some notification system and/or Twitch alert integration
-                    # Can we announce with TTS who donated and how much?
+                        _ = requests.post("http://localhost:5000/donation")
                 else:
                     print("Charity total not found")
 
             except Exception as e:
                 print("Error:", e)
 
-            time.sleep(10)
+            time.sleep(5)
 
     except KeyboardInterrupt:
         print("\nClearing up resources and exiting gracefully...")
