@@ -1,6 +1,7 @@
 # Ignore sound files
 *.mp3
 *.wav
+*.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

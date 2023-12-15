@@ -14,10 +14,14 @@ donation_trigger = False
 app = Flask(__name__)
 
 # Function to generate a simple GIF image
+
+
 def generate_gif():
     return open(GIF_PATH, 'rb').read()
 
 # Route to serve the HTML page with embedded JavaScript
+
+
 @app.route('/')
 def index():
     return """
@@ -45,13 +49,16 @@ def index():
     </html>
     """
 
-@app.route("/donation", methods = ['POST'])
+
+@app.route("/donation", methods=['POST'])
 def donation_received():
     global donation_trigger
     donation_trigger = True
     return Response(status=200)
 
 # SSE route triggered on a server event
+
+
 @app.route('/events')
 def events():
     def generate():
@@ -63,11 +70,12 @@ def events():
                 yield f"data: data:image/gif;base64,{encoded_gif}\n\n"
                 donation_trigger = False
                 if SOUND_FILE:
-                    playsound(SOUND_FILE) # Play notification sound
-                
+                    playsound(SOUND_FILE)  # Play notification sound
+
             time.sleep(1)
 
     return Response(generate(), content_type='text/event-stream')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
