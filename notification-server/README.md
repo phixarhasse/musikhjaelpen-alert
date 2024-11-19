@@ -13,6 +13,7 @@ Koden består av två filer, som körs separat.
 Med hjälp av open source drivrutiner för Chromeium simulerar koden en att en webbläsare öppnar bössans hemsida.
 Sedan inväntas att bössans värde laddas, därefter läses detta HTML-element av och jämförs med angivet startvärde. Har värdet ökat spelas skickas en HTTP POST till servern och värdet som donerats visas i loggen.
 Var 5:e sekund hämtas sidan och värdet läses av igen.
+[Här kan man hitta senaste ChromeDriver](https://googlechromelabs.github.io/chrome-for-testing/#stable)
 
 ### gif-server.py
 

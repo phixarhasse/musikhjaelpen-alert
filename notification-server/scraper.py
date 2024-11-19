@@ -5,19 +5,38 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from dotenv import load_dotenv
+import json
 import time
 import os
 import asyncio
-from websocket_server import WebSocketServer
+import itertools
+import websockets
+import websockets.connection
+from websockets.exceptions import ConnectionClosed
 
 
-def main():
+async def keepalive(websocket, ping_interval=30):
+    for ping in itertools.count():
+        await asyncio.sleep(ping_interval)
+        try:
+            await websocket.send(json.dumps({"ping": ping}))
+        except ConnectionClosed:
+            break
+
+
+async def main():
     print("Starting donation monitor...")
     load_dotenv()
     previous_value = int(os.environ.get("START_VALUE") or "0")
     url = os.environ.get("MH_URL")  # URL to scrape
     # Path to ChromeDriver executable
     chrome_driver_path = os.environ.get("CHROME_DRIVER_PATH")
+
+    ws_connection = await websockets.connect(uri="ws://localhost:8765", ping_timeout=None)
+    print("Connected to WS server")
+    # await ws_connection.send("Hello, world!")
+    # greeting = await ws_connection.recv()
+    # print(f"websocket says < {greeting}")
 
     # Set up Chrome options
     chrome_options = Options()
@@ -27,15 +46,6 @@ def main():
     # Initialize the Chrome browser
     service = Service(chrome_driver_path)
     driver = webdriver.Chrome(service=service, options=chrome_options)
-
-    # Initialize WebSocket server
-    print("Starting WebSocket server...")
-    ws_server = WebSocketServer()
-    asyncio.get_event_loop().run_until_complete(ws_server.start_server())
-    print(f"WebSocket server started at ws://{ws_server.host}:{ws_server.port}")
-    print("Waiting for frontend to connect...")
-    time.sleep(30) # Allow time to start frontend server
-
 
     # Open the webpage using Selenium
     driver.get(url)
@@ -54,6 +64,7 @@ def main():
 
                 charity_total_element = driver.find_element(
                     By.CLASS_NAME, "entry-amount-module--amount--5ecff")
+
                 if charity_total_element.text:
                     print(
                         f"Current charity total: {charity_total_element.text}")
@@ -69,16 +80,19 @@ def main():
                             f.write(f"{current_value} kr")
                             f.close()
 
-                        if(current_value - previous_value >= 200):
-                            payload = {"message": f"🎉 TUBRO DONATION! {donation} kr 🎉"}
-                            asyncio.get_event_loop().run_until_complete(
-                                ws_server.send_event("turbo_donation", payload)
-                            )
+                        if (current_value - previous_value >= 200):
+                            payload = {
+                                "message": f"🎉 TUBRO DONATION! {donation} kr 🎉"}
+                            print(payload)
+                            await ws_connection.send(str(payload))
+                            reply = await ws_connection.recv()
+                            print(f"Received: {reply}")
                         else:
-                            payload = {"message": f"En hjälte skänte {donation} kr"}
-                            asyncio.get_event_loop().run_until_complete(
-                                ws_server.send_event("donation", payload)
-                            )
+                            payload = {
+                                "message": f"En hjälte skänte {donation} kr"}
+                            await ws_connection.send(str(payload))
+                            reply = await ws_connection.recv()
+                            print(f"Received: {reply}")
                 else:
                     print("Charity total not found")
 
@@ -91,7 +105,9 @@ def main():
         print("\nClearing up resources and exiting gracefully...")
         driver.quit()
         service.stop()
+        await ws_connection.close()
         exit(0)
 
+
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
