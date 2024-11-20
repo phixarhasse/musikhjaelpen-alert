@@ -1,7 +1,7 @@
 // src/App.tsx
-import React from 'react';
-import './App.css';
-import EventDrivenComponent from './ShowNotifications';
+import React from "react";
+import "./App.css";
+import EventDrivenComponent from "./ShowNotifications";
 
 const App: React.FC = () => {
   return (

@@ -1,61 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
+import useWebSocket, { ReadyState } from "react-use-websocket";
 
-interface EventData {
-  event: string;
-  data: {
-    message: string;
-  }
-}
+// interface EventData {
+//   event: string;
+//   data: {
+//     message: string;
+//   };
+// }
 
 const ShowNotifications: React.FC = () => {
+  const WS_URL = "ws://localhost:8765/";
   const [showGif, setShowGif] = useState(false);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [countdown, setCountdown] = useState<number | null>(null);
 
+  const { lastMessage, readyState } = useWebSocket(WS_URL, {
+    share: false,
+    shouldReconnect: () => true,
+  });
+
+  const replaceSingleQuotes = (str: string): string => {
+    return str.replace(/'/g, '"');
+  };
   useEffect(() => {
-    const socket = new WebSocket('ws://localhost:8765/');
+    if (readyState === ReadyState.OPEN) {
+      console.log("WebSocket connection established");
+    }
+  }, [readyState]);
 
-    socket.onopen = () => {
-      console.log('WebSocket connection established');
-    };
-
-    socket.onmessage = (event) => {
-      const payload: EventData = JSON.parse(event.data);
-      switch (payload.event) {
-        case 'donation':
-          setShowGif(true);
-          setMessage(payload.data.message);
-          setTimeout(() => {
-            setShowGif(false);
-            setMessage('');
-          }, 5000); // Hide GIF and clear message after 5 seconds
-          break;
-        case 'turbo_donation':
-          setShowGif(true);
-          setMessage(payload.data.message);
-          setCountdown(30); // Start 30-second countdown
-          setTimeout(() => {
-            setShowGif(false);
-            setMessage('');
-          }, 5000); // Hide GIF and clear message after 5 seconds
-          break;
-        default:
-          console.log('Unknown event type:', payload.event);
-      }
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    socket.onclose = () => {
-      console.log('WebSocket connection closed');
-    };
-
-    return () => {
-      socket.close();
-    };
-  }, []);
+  useEffect(() => {
+    const payload = lastMessage
+      ? JSON.parse(replaceSingleQuotes(lastMessage.data))
+      : null;
+    console.log("Received message:", payload || "No message");
+  }, [lastMessage]);
 
   useEffect(() => {
     if (countdown !== null) {
@@ -64,7 +42,7 @@ const ShowNotifications: React.FC = () => {
         return () => clearTimeout(timer);
       } else {
         setShowGif(false);
-        setMessage('');
+        setMessage("");
         setCountdown(null);
       }
     }
