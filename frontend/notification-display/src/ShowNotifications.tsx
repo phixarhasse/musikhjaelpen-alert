@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
+import salute from "./assets/gifs/salute.gif";
+import MessageText from "./components/MessageText";
+import CountdownText from "./components/CountdownText";
 
-// interface EventData {
-//   event: string;
-//   data: {
-//     message: string;
-//   };
-// }
+interface EventData {
+  event: string;
+  message: string;
+}
+
+// TODO: Implement a queue so refresh time can be faster than notification rate
 
 const ShowNotifications: React.FC = () => {
   const WS_URL = "ws://localhost:8765/";
@@ -19,9 +22,25 @@ const ShowNotifications: React.FC = () => {
     shouldReconnect: () => true,
   });
 
+  const showGifFor10Seconds = () => {
+    setShowGif(true);
+    setTimeout(() => {
+      setShowGif(false);
+    }, 10000);
+  };
+
+  const showMessageFor10Seconds = (message: string) => {
+    setMessage(message);
+    setTimeout(() => {
+      setMessage("");
+    }, 10000);
+  };
+
+
   const replaceSingleQuotes = (str: string): string => {
     return str.replace(/'/g, '"');
   };
+  
   useEffect(() => {
     if (readyState === ReadyState.OPEN) {
       console.log("WebSocket connection established");
@@ -29,10 +48,24 @@ const ShowNotifications: React.FC = () => {
   }, [readyState]);
 
   useEffect(() => {
-    const payload = lastMessage
+    const payload: EventData | null = lastMessage
       ? JSON.parse(replaceSingleQuotes(lastMessage.data))
       : null;
-    console.log("Received message:", payload || "No message");
+
+      if(payload && payload?.event) {
+        showGifFor10Seconds();
+        switch (payload.event) {
+          case "donation":
+            showMessageFor10Seconds(payload.message);
+            break;
+          case "sprint_donation":
+            setCountdown(10);
+            showMessageFor10Seconds(payload.message);
+            break;
+          default:
+            console.log("Unknown event type");
+      }
+    }
   }, [lastMessage]);
 
   useEffect(() => {
@@ -52,11 +85,11 @@ const ShowNotifications: React.FC = () => {
     <div>
       {showGif && (
         <div>
-          <img src="path-to-your-gif.gif" alt="Triggered Event" />
-          <p>{message}</p>
+          <img src={salute} alt="Event gif" />
+          <MessageText message={message} />
         </div>
       )}
-      {countdown !== null && <p>Countdown: {countdown} seconds</p>}
+      {countdown !== null && <CountdownText count={countdown} />}
     </div>
   );
 };
