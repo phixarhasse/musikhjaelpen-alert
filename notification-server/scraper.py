@@ -5,49 +5,34 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from dotenv import load_dotenv
-import json
 import time
 import os
 import asyncio
-import itertools
 import websockets
 import websockets.connection
-from websockets.exceptions import ConnectionClosed
 
 
-async def keepalive(websocket, ping_interval=30):
-    for ping in itertools.count():
-        await asyncio.sleep(ping_interval)
-        try:
-            await websocket.send(json.dumps({"ping": ping}))
-        except ConnectionClosed:
-            break
-
+# TODO: Error handling, improved logging
+# TODO: Add env vars for WS URL and page refresh interval
+# TODO: Philips Hue integration
 
 async def main():
     print("Starting donation monitor...")
+
+    # Load environment variables
     load_dotenv()
     previous_value = int(os.environ.get("START_VALUE") or "0")
-    url = os.environ.get("MH_URL")  # URL to scrape
-    # Path to ChromeDriver executable
+    url = os.environ.get("MH_URL")
     chrome_driver_path = os.environ.get("CHROME_DRIVER_PATH")
 
     ws_connection = await websockets.connect(uri="ws://localhost:8765", ping_timeout=None)
     print("Connected to WS server")
-    # await ws_connection.send("Hello, world!")
-    # greeting = await ws_connection.recv()
-    # print(f"websocket says < {greeting}")
 
-    # Set up Chrome options
+    # Setup Selenium
     chrome_options = Options()
-    # Run Chrome in headless mode (without opening a browser window)
     chrome_options.add_argument("--headless")
-
-    # Initialize the Chrome browser
     service = Service(chrome_driver_path)
     driver = webdriver.Chrome(service=service, options=chrome_options)
-
-    # Open the webpage using Selenium
     driver.get(url)
     time.sleep(5)  # Give page time to load
     print("Page loaded, scraper started.")
@@ -55,6 +40,9 @@ async def main():
     try:
         while True:
             try:
+                # FOR TESTING
+                # previous_value = 0
+
                 driver.refresh()
                 # Wait for the spinner element to disappear, i.e. the raised amount has been loaded
                 WebDriverWait(driver, 30).until_not(
@@ -99,13 +87,13 @@ async def main():
             except Exception as e:
                 print("Error:", e)
 
-            time.sleep(5)
+            time.sleep(10)
 
     except KeyboardInterrupt:
         print("\nClearing up resources and exiting gracefully...")
+        await ws_connection.close()
         driver.quit()
         service.stop()
-        await ws_connection.close()
         exit(0)
 
 
