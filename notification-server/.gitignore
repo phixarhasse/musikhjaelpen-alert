@@ -1,3 +1,7 @@
+# Ignore state files
+hue_username*
+current_value*
+
 # Ignore sound files
 *.mp3
 *.wav
