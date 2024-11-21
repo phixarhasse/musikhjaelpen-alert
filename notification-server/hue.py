@@ -4,17 +4,17 @@ import requests
 
 
 class Hue:
-    def __init__(self):
+    def __init__(self, bridgeIp: str = ""):
         logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
                             level=logging.DEBUG, datefmt="%Y-%m-%d %H:%M:%S")
-        try:
-            self.bridgeIp = os.getenv('HUE_IP')
-            self.url = f"http://{self.bridgeIp}/api"
-        except KeyError:
-            logging.error("Could not parse HUE_IP in the file .env")
+        if (bridgeIp == ""):
+            logging.error("Hue bridge IP not provided.")
             quit(1)
 
+        self.bridgeIp = bridgeIp
+        self.url = f"http://{self.bridgeIp}/api"
         self.lights = []
+        self.lightsStartingState = []
         self.username = ""
         self.loadUsername()
         if (self.username == ""):
@@ -24,7 +24,7 @@ class Hue:
 
     def saveUsername(self, username):
         try:
-            f = open("hue_username", "w")
+            f = open("hue_username", "x")
             f.write(username)
             f.close()
         except Exception as e:
@@ -44,7 +44,7 @@ class Hue:
         self.username = ""
         try:
             hueResponse = requests.post(
-                self.url, json={"devicetype": "coffeebot"})
+                self.url, json={"devicetype": "mh_donation_notification"})
             # Need to generate username
             if (hueResponse.json()[0]["error"]["type"] == 101):
                 logging.info(
@@ -55,7 +55,7 @@ class Hue:
                     quit(0)
                 else:
                     hueResponse = requests.post(
-                        self.url, json={"devicetype": "coffeebot"})
+                        self.url, json={"devicetype": "mh_donation_notification"})
                     username = hueResponse.json()[0]["success"]["username"]
                     self.username = username
                     self.saveUsername(username)
@@ -63,6 +63,7 @@ class Hue:
                 username = hueResponse.json()[0]["success"]["username"]
                 self.username = username
                 self.saveUsername(username)
+            logging.info(f"Hue username stored")
         except Exception as e:
             logging.error("Error during Hue authentication.")
             logging.error("Exception: ", e)
@@ -84,7 +85,42 @@ class Hue:
             self.lights.append(light)
         return
 
-    def setAllLights(self, color):
+    def saveAllLightState(self):
+        if (self.username == ""):
+            return
+        if (len(self.lights) == 0):
+            self.getLights()
+        try:
+            for light in self.lights:
+                hueResponse = requests.get(
+                    f"{self.url}/{self.username}/lights/{light}")
+                self.lightsStartingState.append(
+                    {"light": light, "state": hueResponse.json()["state"]})
+            logging.info("Hue lights states stored.")
+            return
+        except Exception as e:
+            logging.error("Unable to store Hue light states", e)
+            return
+
+    def restoreAllLightState(self):
+        if (self.username == ""):
+            return
+        if (len(self.lightsStartingState) == 0):
+            logging.error("No light states to restore.")
+            return
+        try:
+            for light in self.lightsStartingState:
+                hueResponse = requests.put(
+                    f"{self.url}/{self.username}/lights/{light['light']}/state",
+                    json=light["state"])
+                logging.debug(
+                    f"Hue light {light['light']}: {hueResponse.status_code}")
+            logging.info("Hue lights states restored.")
+            return
+        except Exception as e:
+            logging.error("Unable to restore Hue light states", e)
+
+    def setAllLights(self, color: int):
         try:
             for light in self.lights:
                 hueResponse = requests.put(
