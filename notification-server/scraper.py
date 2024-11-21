@@ -5,6 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from dotenv import load_dotenv
+from hue import Hue
 import websockets.connection
 import websockets
 import logging
@@ -39,6 +40,10 @@ async def main():
     except Exception as e:
         logging.error(f"Error connecting to WS server: {e}")
         exit(1)
+
+
+    # Setup Hue
+    hue = Hue()
 
     # Setup Selenium Scraper
     chrome_options = Options()
