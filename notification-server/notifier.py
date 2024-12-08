@@ -80,7 +80,7 @@ async def main():
         while True:
             try:
                 # FOR TESTING
-                previous_value = 0
+                # previous_value = 0
 
                 driver.refresh()
                 # Wait for the spinner element to disappear, i.e. the raised amount has been loaded
@@ -105,7 +105,7 @@ async def main():
                         donation = current_value - previous_value
                         logging.info(f"Donation detected: {donation} kr")
 
-                        if (current_value - previous_value) >= 900000:
+                        if (current_value - previous_value) >= 200:
                             # Sprint donation event
                             payload = {"event": "sprint_donation",
                                        "message": f"🎉 SPRINT DONATION! {donation} kr 🎉"}
