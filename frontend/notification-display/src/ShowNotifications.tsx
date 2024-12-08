@@ -11,7 +11,6 @@ interface EventData {
 }
 
 // TODO: Implement a queue so refresh time can be faster than notification rate
-// TODO: Play notification sounds
 
 const ShowNotifications: React.FC = () => {
   const WS_URL = "ws://localhost:8765/";
@@ -29,7 +28,7 @@ const ShowNotifications: React.FC = () => {
     setShowGif(true);
     setTimeout(() => {
       setShowGif(false);
-    }, 10000);
+    }, 10500);
   };
 
   const showMessageFor10Seconds = (message: string) => {
