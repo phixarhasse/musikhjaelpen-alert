@@ -4,6 +4,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from playsound import playsound
 from dotenv import load_dotenv
 from hue import Hue
 import websockets.connection
@@ -50,6 +51,8 @@ async def main():
     WS_URL = os.environ.get("WEBSOCKET_SERVER_URL")
     REFRESH_RATE = int(os.environ.get("REFRESH_RATE") or "5")  # seconds
     HUE_BRIDGE_IP = os.environ.get("HUE_BRIDGE_IP" or "")
+    DONATION_SOUND_PATH = "./soundfiles/snyggtbyggt.mp3"
+    SPRINT_DONATION_SOUND_PATH = "./soundfiles/sandstorm.mp3"
 
     try:
         ws_connection = await websockets.connect(uri=WS_URL, ping_timeout=None)
@@ -102,12 +105,13 @@ async def main():
                         donation = current_value - previous_value
                         logging.info(f"Donation detected: {donation} kr")
 
-                        if (current_value - previous_value) >= 200000:
+                        if (current_value - previous_value) >= 900000:
                             # Sprint donation event
                             payload = {"event": "sprint_donation",
                                        "message": f"🎉 SPRINT DONATION! {donation} kr 🎉"}
                             await ws_connection.send(str(payload))
                             _ = await ws_connection.recv()  # Hold for response
+                            playsound(SPRINT_DONATION_SOUND_PATH, block=False)
                             logging.info("Sprint donation event sent")
                             flashLightsRed(hue, 5)
 
@@ -117,6 +121,7 @@ async def main():
                                        "message": f"En hjälte skänkte {donation} kr"}
                             await ws_connection.send(str(payload))
                             _ = await ws_connection.recv()  # Hold for response
+                            playsound(DONATION_SOUND_PATH, block=False)
                             logging.info("Donation event sent")
                             shortFlashLightsGreen(hue)
 
