@@ -7,7 +7,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from playsound import playsound
 from dotenv import load_dotenv
 from hue import Hue
-import websockets.connection
 import websockets
 import logging
 import asyncio
