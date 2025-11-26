@@ -1,6 +1,7 @@
 # Ignore state files
 hue_username*
 current_value*
+hue-openapi*
 
 # Ignore sound files
 *.mp3
