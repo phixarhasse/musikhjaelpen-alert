@@ -7,11 +7,15 @@ from typing import List
 import urllib3
 import requests
 
-from hueStatehelper import ComplexEncoder
-
 # Suppress insecure TLS warnings (requests/urllib3) since verify=False is used locally
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+class Encoder(json.JSONEncoder):
+    def default(self, obj):
+        if hasattr(obj,'reprJSON'):
+            return obj.reprJSON()
+        else:
+            return json.JSONEncoder.default(self, obj)
 
 class HueClient:
     """Simple Hue CLIP v2 client.
@@ -29,7 +33,6 @@ class HueClient:
             datefmt="%Y-%m-%d %H:%M:%S",
         )
 
-        # support older env var names and arg names for compatibility
         self.bridge_ip = bridge_ip or os.getenv("HUE_BRIDGE_IP")
         if not self.bridge_ip:
             raise ValueError("Bridge IP must be provided either by argument or HUE_BRIDGE_IP env var")
@@ -82,7 +85,7 @@ class HueClient:
 
     def _put_light_state(self, light_id: str, state: dict) -> None:
         try:
-            payload = json.dumps(self._normalize_state_for_put(state), cls=ComplexEncoder)
+            payload = json.dumps(self._normalize_state_for_put(state), cls=Encoder)
             resp = requests.put(f"{self.base_url}/light/{light_id}", headers=self.headers, data=payload, verify=False)
             if not resp.ok:
                 logging.debug(f"_put_light_state: light {light_id} -> {resp.status_code} {resp.text}")
@@ -164,7 +167,6 @@ class HueClient:
             logging.warning("rainbow_fade: no lights initialized. Call initialize() first.")
             return
 
-        # Simplified quick rainbow: use 5 colors, 0.3s per color to reduce requests
         if duration <= 0:
             return
 
