@@ -1,5 +1,6 @@
 import json
 import logging
+from dotenv import load_dotenv
 import os
 import time
 from typing import List
@@ -32,12 +33,13 @@ class HueClient:
             level=logging.DEBUG,
             datefmt="%Y-%m-%d %H:%M:%S",
         )
+        load_dotenv()
 
-        self.bridge_ip = bridge_ip or os.getenv("HUE_BRIDGE_IP")
+        self.bridge_ip = bridge_ip or os.environ.get("HUE_BRIDGE_IP")
         if not self.bridge_ip:
             raise ValueError("Bridge IP must be provided either by argument or HUE_BRIDGE_IP env var")
 
-        self.appkey = appkey or username or os.getenv("HUE_APPKEY")
+        self.appkey = appkey or username or os.environ.get("HUE_APPKEY")
         if not self.appkey:
             raise ValueError("Hue appkey not found. Provide as arg or env var HUE_APPKEY")
 
@@ -120,7 +122,7 @@ class HueClient:
         for lid in list(self.lights):
             self._put_light_state(lid, state)
 
-    def restore_all(self) -> None:
+    def restore_all_to_prism(self) -> None:
         """Restore all lights to the saved initial states."""
         # Instead of restoring each light's original state, always set the Prism effect
         prism_state = {"effects_v2": {"action": {"effect": "prism"}}}
@@ -155,9 +157,9 @@ class HueClient:
                 time.sleep(cycle_off)
         finally:
             # Always restore at the end
-            self.restore_all()
+            self.restore_all_to_prism()
 
-    def rainbow_fade(self, duration: float = 5.0) -> None:
+    def rainbow_fade(self, duration: float = 10.0) -> None:
         """Do a simple rainbow fade across a small set of colors over `duration` seconds.
 
         This is a simplistic implementation: it steps through color stops and sets
@@ -172,16 +174,25 @@ class HueClient:
 
         quick_palette = [
             {"x": 0.6758, "y": 0.3007},  # red
-            {"x": 0.6484, "y": 0.3309},  # orange
-            {"x": 0.4878, "y": 0.4613},  # yellow
             {"x": 0.1673, "y": 0.5968},  # green
+            {"x": 0.6484, "y": 0.3309},  # orange
             {"x": 0.1532, "y": 0.0585},  # blue
+            {"x": 0.4878, "y": 0.4613},  # yellow
+            {"x": 0.3227, "y": 0.1741},  # violet-ish
+            {"x": 0.246,  "y": 0.171},   # cyan-ish
+            {"x": 0.5,    "y": 0.25},    # magenta-like
+            {"x": 0.6758, "y": 0.3007},  # red
+            {"x": 0.1673, "y": 0.5968},  # green
+            {"x": 0.6484, "y": 0.3309},  # orange
+            {"x": 0.1532, "y": 0.0585},  # blue
+            {"x": 0.4878, "y": 0.4613},  # yellow
             {"x": 0.3227, "y": 0.1741},  # violet-ish
             {"x": 0.246,  "y": 0.171},   # cyan-ish
             {"x": 0.5,    "y": 0.25},    # magenta-like
         ]
+        off_state = {"dimming": {"brightness": 0}}
 
-        per_color = 0.2
+        on_time = 0.05
         start = time.perf_counter()
         idx = 0
         try:
@@ -192,10 +203,11 @@ class HueClient:
                 color = quick_palette[idx % len(quick_palette)]
                 state = {"dimming": {"brightness": 78.66}, "color": {"xy": color}}
                 self._set_all(state)
-                time.sleep(per_color)
+                time.sleep(on_time)
+                self._set_all(off_state)
                 idx += 1
         finally:
-            self.restore_all()
+            self.restore_all_to_prism()
 
 
 if __name__ == "__main__":

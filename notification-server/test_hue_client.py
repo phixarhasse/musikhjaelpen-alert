@@ -98,12 +98,12 @@ def main():
             client.rainbow_fade()
 
         print("Final restore to initial states...")
-        client.restore_all()
+        client.restore_all_to_prism()
         print("Done.")
 
     except KeyboardInterrupt:
         print("Interrupted — restoring lights and exiting.")
-        client.restore_all()
+        client.restore_all_to_prism()
 
     finally:
         if args.simulate and requests_get_orig is not None:
