@@ -44,6 +44,7 @@ class HueClient:
             raise ValueError("Hue appkey not found. Provide as arg or env var HUE_APPKEY")
 
         self.base_url = f"https://{self.bridge_ip}/clip/v2/resource"
+        self.base_url_v1 = f"https://{self.bridge_ip}/api/{self.appkey}"
         self.headers = {
             "hue-application-key": self.appkey,
             "Content-Type": "application/json",
@@ -94,6 +95,15 @@ class HueClient:
         except Exception as e:
             logging.error("_put_light_state: exception for %s: %s", light_id, e)
 
+    def flash_group1(self) -> None:
+        try:
+            payload = json.dumps({"alert": "lselect"})
+            resp = requests.put(f"{self.base_url_v1}/groups/1/action", headers=self.headers, data=payload, verify=False)
+            if not resp.ok:
+                logging.debug("flash_group1: group 1 -> %s %s", resp.status_code, resp.text)
+        except Exception as e:
+            logging.error("flash_group1: exception while flashing group 1: %s", e)
+
 
     def _normalize_state_for_put(self, state: dict) -> dict:
         """Ensure state is safe for PUT. Specifically, effects_v2 must contain action.effect per API."""
@@ -123,89 +133,41 @@ class HueClient:
             self._put_light_state(lid, state)
 
     def restore_all_to_prism(self) -> None:
-        """Restore all lights to the saved initial states."""
+        """Restore all lights to the prism effect."""
         # Instead of restoring each light's original state, always set the Prism effect
         prism_state = {"effects_v2": {"action": {"effect": "prism"}}}
         self._set_all(prism_state)
 
-    def flash_all_green(self, flashes: int = 3) -> None:
-        """Flash all lights green `flashes` times with a 1s cycle.
-
-        Sequence per cycle: set green -> wait 0.5s -> turn off -> wait 0.5s
-        Only `flashes` is accepted; restore original states at the end.
+    def flash_all_green(self) -> None:
+        """Flash all lights green.
         """
         if not self.lights:
             logging.warning("flash_all_green: no lights initialized. Call initialize() first.")
             return
 
-        # green xy used elsewhere in repo
         green_state = {"dimming": {"brightness": 78.66}, "color": {"xy": {"x": 0.1673, "y": 0.5968}}}
-        # Off state: dim to 0 (bridge will interpret as lowest/turn off)
-        off_state = {"dimming": {"brightness": 0}}
-
-        cycle_on = 0.1
-        cycle_off = 0.1
 
         try:
-            for _ in range(max(0, int(flashes))):
-                # set green
-                self._set_all(green_state)
-                time.sleep(cycle_on)
-
-                # set off between flashes
-                self._set_all(off_state)
-                time.sleep(cycle_off)
+            self._set_all(green_state)
+            time.sleep(0.5)
+            self.flash_group1()
+            time.sleep(8)
         finally:
-            # Always restore at the end
             self.restore_all_to_prism()
 
-    def rainbow_fade(self, duration: float = 10.0) -> None:
-        """Do a simple rainbow fade across a small set of colors over `duration` seconds.
-
-        This is a simplistic implementation: it steps through color stops and sets
-        them on all lights sequentially. At the end, original states are restored.
-        """
+    def rainbow_blink(self, duration: float = 5.0) -> None:
         if not self.lights:
-            logging.warning("rainbow_fade: no lights initialized. Call initialize() first.")
+            logging.warning("rainbow_blink: no lights initialized. Call initialize() first.")
             return
 
         if duration <= 0:
             return
 
-        quick_palette = [
-            {"x": 0.6758, "y": 0.3007},  # red
-            {"x": 0.1673, "y": 0.5968},  # green
-            {"x": 0.6484, "y": 0.3309},  # orange
-            {"x": 0.1532, "y": 0.0585},  # blue
-            {"x": 0.4878, "y": 0.4613},  # yellow
-            {"x": 0.3227, "y": 0.1741},  # violet-ish
-            {"x": 0.246,  "y": 0.171},   # cyan-ish
-            {"x": 0.5,    "y": 0.25},    # magenta-like
-            {"x": 0.6758, "y": 0.3007},  # red
-            {"x": 0.1673, "y": 0.5968},  # green
-            {"x": 0.6484, "y": 0.3309},  # orange
-            {"x": 0.1532, "y": 0.0585},  # blue
-            {"x": 0.4878, "y": 0.4613},  # yellow
-            {"x": 0.3227, "y": 0.1741},  # violet-ish
-            {"x": 0.246,  "y": 0.171},   # cyan-ish
-            {"x": 0.5,    "y": 0.25},    # magenta-like
-        ]
-        off_state = {"dimming": {"brightness": 0}}
-
-        on_time = 0.05
-        start = time.perf_counter()
-        idx = 0
         try:
-            while True:
-                elapsed = time.perf_counter() - start
-                if elapsed >= duration:
-                    break
-                color = quick_palette[idx % len(quick_palette)]
-                state = {"dimming": {"brightness": 78.66}, "color": {"xy": color}}
-                self._set_all(state)
-                time.sleep(on_time)
-                self._set_all(off_state)
-                idx += 1
+            self.restore_all_to_prism()
+            time.sleep(0.2)
+            self.flash_group1()
+            time.sleep(8)
         finally:
             self.restore_all_to_prism()
 

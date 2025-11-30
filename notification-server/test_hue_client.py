@@ -95,7 +95,7 @@ def main():
 
         if not args.no_rainbow:
             print("Running rainbow fade for 10 seconds...")
-            client.rainbow_fade()
+            client.rainbow_blink()
 
         print("Final restore to initial states...")
         client.restore_all_to_prism()
