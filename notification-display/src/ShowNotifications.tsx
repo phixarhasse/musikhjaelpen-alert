@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import useWebSocket, { ReadyState } from "react-use-websocket";
 import cycling from "./assets/gifs/cycling.gif";
 import sprint from "./assets/gifs/sprint.gif";
+import g1 from "./assets/gifs/thegrinch/g1.gif";
+import g2 from "./assets/gifs/thegrinch/g2.gif";
+import g3 from "./assets/gifs/thegrinch/g3.gif";
 import MessageText from "./components/MessageText";
 import CountdownText from "./components/CountdownText";
 
@@ -24,6 +27,23 @@ const ShowNotifications: React.FC = () => {
     shouldReconnect: () => true,
   });
 
+  const cycleSelectedGrinchGif = () => {
+    switch (selectedGif) {
+      case g1:
+        setSelectedGif(g2);
+        break;
+      case g2:
+        setSelectedGif(g3);
+        break;
+      case g3:
+        setSelectedGif(g1);
+        break;
+      default:
+        setSelectedGif(g1);
+        break;
+    }
+  };
+
   const showGifFor10Seconds = () => {
     setShowGif(true);
     setTimeout(() => {
@@ -34,6 +54,16 @@ const ShowNotifications: React.FC = () => {
   const showMessageFor10Seconds = (message: string) => {
     setMessage(message);
     setTimeout(() => {
+      setMessage("");
+    }, 10000);
+  };
+
+  const showGifAndMessageFor10Seconds = (message: string) => {
+    setShowGif(true);
+    setMessage(message);
+    setCountdown(10);
+    setTimeout(() => {
+      setShowGif(false);
       setMessage("");
     }, 10000);
   };
@@ -56,9 +86,8 @@ const ShowNotifications: React.FC = () => {
     if (payload && payload?.event) {
       switch (payload.event) {
         case "donation":
-          setSelectedGif(cycling);
-          showGifFor10Seconds();
-          showMessageFor10Seconds(payload.message);
+          showGifAndMessageFor10Seconds(payload.message);
+          // showMessageFor10Seconds(payload.message);
           break;
         case "sprint_donation":
           setSelectedGif(sprint);
