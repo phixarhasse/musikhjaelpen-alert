@@ -15,10 +15,6 @@ import asyncio
 import time
 import os
 
-
-# TODO: Rename program
-# TODO: Startup script
-
 async def main():
     logging.basicConfig(
         level=logging.INFO,
@@ -34,8 +30,8 @@ async def main():
     MH_URL = os.environ.get("MH_URL") or ""
     WS_URL = os.environ.get("WEBSOCKET_SERVER_URL") or "ws://localhost:8765"
     REFRESH_RATE = int(os.environ.get("REFRESH_RATE") or "5")  # seconds
-    DONATION_SOUND_PATH = "./soundfiles/snyggtbyggt.mp3"
-    SPRINT_DONATION_SOUND_PATH = "./soundfiles/sandstorm.mp3"
+    DONATION_SOUND_PATH = "./soundfiles/the-impudence.mp3"
+    BIG_DONATION_SOUND_PATH = "./soundfiles/the-grinch-loathe-entirely.mp3"
 
     try:
         ws_connection = await websockets.connect(uri=WS_URL, ping_timeout=None)
@@ -100,13 +96,13 @@ async def main():
                         logging.info(f"Donation detected: {donation} kr")
 
                         if (current_value - previous_value) >= 200:
-                            # Sprint donation event
-                            payload = {"event": "sprint_donation",
-                                       "message": f"🎉 SPRINT DONATION! {donation} kr 🎉"}
+                            # Big donation event
+                            payload = {"event": "big_donation",
+                                       "message": f"🎉 BIG Donation! {donation} kr 🎉"}
                             await ws_connection.send(str(payload))
                             _ = await ws_connection.recv()  # Hold for response
-                            playsound(SPRINT_DONATION_SOUND_PATH, block=False)
-                            logging.info("Sprint donation event sent")
+                            playsound(BIG_DONATION_SOUND_PATH, block=False)
+                            logging.info("High value donation event sent")
                             hue.rainbow_blink()
 
                         else:

@@ -61,10 +61,10 @@ const ShowNotifications: React.FC = () => {
   const showGifAndMessageFor10Seconds = (message: string) => {
     setShowGif(true);
     setMessage(message);
-    setCountdown(10);
     setTimeout(() => {
       setShowGif(false);
       setMessage("");
+      cycleSelectedGrinchGif();
     }, 10000);
   };
 
@@ -87,13 +87,9 @@ const ShowNotifications: React.FC = () => {
       switch (payload.event) {
         case "donation":
           showGifAndMessageFor10Seconds(payload.message);
-          // showMessageFor10Seconds(payload.message);
           break;
-        case "sprint_donation":
-          setSelectedGif(sprint);
-          setCountdown(10);
-          showGifFor10Seconds();
-          showMessageFor10Seconds(payload.message);
+        case "big_donation":
+          showGifAndMessageFor10Seconds(payload.message);
           break;
         default:
           console.log("Unknown event type");
