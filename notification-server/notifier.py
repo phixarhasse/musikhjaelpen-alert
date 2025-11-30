@@ -1,12 +1,14 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from playsound import playsound
 from dotenv import load_dotenv
-from hue import Hue
+from hue_client import HueClient
 import websockets
 import logging
 import asyncio
@@ -17,39 +19,21 @@ import os
 # TODO: Rename program
 # TODO: Startup script
 
-def flashLightsRed(hue: Hue, times: int):
-    for _ in range(times):
-        hue.turnOffAllLights()
-        time.sleep(0.5)
-        hue.setAllLights(65000)
-        time.sleep(0.5)
-    hue.restoreAllLightState()
-
-
-def shortFlashLightsGreen(hue: Hue):
-    hue.turnOffAllLights()
-    time.sleep(0.5)
-    hue.setAllLights(29000)
-    time.sleep(4)
-    hue.restoreAllLightState()
-
-
 async def main():
     logging.basicConfig(
         level=logging.INFO,
         format="{asctime} - {levelname} - {message}",
         style="{", datefmt="%Y-%m-%d %H:%M")
 
+
     logging.info("Starting donation monitor...")
 
     # Load environment variables
     load_dotenv()
     START_VALUE = int(os.environ.get("START_VALUE") or "0")
-    MH_URL = os.environ.get("MH_URL")
-    CHROMEDRIVER_PATH = os.environ.get("CHROME_DRIVER_PATH")
-    WS_URL = os.environ.get("WEBSOCKET_SERVER_URL")
+    MH_URL = os.environ.get("MH_URL") or ""
+    WS_URL = os.environ.get("WEBSOCKET_SERVER_URL") or "ws://localhost:8765"
     REFRESH_RATE = int(os.environ.get("REFRESH_RATE") or "5")  # seconds
-    HUE_BRIDGE_IP = os.environ.get("HUE_BRIDGE_IP" or "")
     DONATION_SOUND_PATH = "./soundfiles/snyggtbyggt.mp3"
     SPRINT_DONATION_SOUND_PATH = "./soundfiles/sandstorm.mp3"
 
@@ -61,17 +45,20 @@ async def main():
         exit(1)
 
     # Setup Hue
-    hue = Hue(bridgeIp=HUE_BRIDGE_IP)
-    hue.getLights()
-    hue.saveAllLightState()
+    hue = HueClient()
+    hue.initialize()
 
     # Setup Selenium Scraper
     chrome_options = Options()
     chrome_options.add_argument("--headless")
-    service = Service(CHROMEDRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=chrome_options)
+    driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
     driver.get(MH_URL)
-    time.sleep(5)  # Give page time to load
+    time.sleep(2)  # Give page time to load
+    # Try to accept cookie consent overlays that can block the amount element
+    try:
+        _try_accept_cookie(driver)
+    except Exception:
+        logging.debug("Cookie accept attempt failed during initial load", exc_info=True)
     logging.info("Page loaded, scraper started.")
 
     previous_value: int = START_VALUE
@@ -82,14 +69,22 @@ async def main():
                 # previous_value = 0
 
                 driver.refresh()
+                # Try to accept cookie consent overlays after refresh
+                try:
+                    _try_accept_cookie(driver)
+                except Exception:
+                    logging.debug("Cookie accept attempt failed after refresh", exc_info=True)
                 # Wait for the spinner element to disappear, i.e. the raised amount has been loaded
-                WebDriverWait(driver, 30).until_not(
+                WebDriverWait(driver, timeout=30).until_not(
                     EC.presence_of_element_located(
                         (By.CLASS_NAME, "entry-amount-module--spinnerWrapper--70e75")))
 
-                # Find charity total element
-                charity_total_element = driver.find_element(
-                    By.CLASS_NAME, "entry-amount-module--amount--5ecff")
+                # Wait for the charity total element text to be non-empty
+                charity_total_element = WebDriverWait(driver, timeout=30).until(
+                    EC.presence_of_element_located(
+                        (By.CLASS_NAME, "entry-amount-module--amount--5ecff")))
+                WebDriverWait(driver, timeout=30).until(
+                    lambda d: d.find_element(By.CLASS_NAME, "entry-amount-module--amount--5ecff").text != "")
 
                 if charity_total_element.text:
                     logging.info(
@@ -112,7 +107,7 @@ async def main():
                             _ = await ws_connection.recv()  # Hold for response
                             playsound(SPRINT_DONATION_SOUND_PATH, block=False)
                             logging.info("Sprint donation event sent")
-                            flashLightsRed(hue, 5)
+                            hue.rainbow_blink()
 
                         else:
                             # Regular donation event
@@ -122,7 +117,7 @@ async def main():
                             _ = await ws_connection.recv()  # Hold for response
                             playsound(DONATION_SOUND_PATH, block=False)
                             logging.info("Donation event sent")
-                            shortFlashLightsGreen(hue)
+                            hue.flash_all_green()
 
                         previous_value = current_value
                         with open("current_value.txt", "w", encoding="utf-8") as f:
@@ -132,7 +127,13 @@ async def main():
                     logging.error("Charity total not found")
 
             except Exception as e:
-                logging.error("Unexpected exception while scraping:", e)
+                # Handle Selenium timeouts separately so we can continue polling
+                if isinstance(e, TimeoutException):
+                    logging.warning("Timed out waiting for elements on the page; will retry")
+                    driver.save_screenshot(f"timeout_{int(time.time())}.png")
+                else:
+                    # Log full traceback for unexpected errors
+                    logging.exception("Unexpected exception while scraping")
 
             time.sleep(REFRESH_RATE)
 
@@ -140,8 +141,44 @@ async def main():
         logging.info("Clearing up resources and exiting...")
         await ws_connection.close()
         driver.quit()
-        service.stop()
         exit(0)
+
+def _try_accept_cookie(driver, timeout_seconds: float = 2.0) -> bool:
+    """Best-effort: click the cookie consent accept button if present.
+
+    Prioritize the specific class you found (`primary-button-module--primaryButtonStyle--cab94`).
+    Returns True if a click was performed, False otherwise.
+    """
+    # Target the exact class first (common on this site), then fall back to
+    # a few generic patterns if needed.
+    xpaths = [
+        "//button[contains(@class, 'primary-button-module--primaryButtonStyle--cab94')]",
+        "//button[contains(@class, 'cookie') or contains(@class, 'consent') or contains(@id, 'cookie')]",
+        "//button[contains(translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), 'accept')]",
+    ]
+
+    end = time.time() + timeout_seconds
+    for xp in xpaths:
+        try:
+            elems = driver.find_elements(By.XPATH, xp)
+        except Exception:
+            elems = []
+
+        for el in elems:
+            try:
+                if not el.is_displayed():
+                    continue
+                el.click()
+                time.sleep(0.25)
+                return True
+            except Exception:
+                continue
+
+        if time.time() > end:
+            break
+
+    logging.debug("No cookie accept button found for tried xpaths")
+    return False
 
 
 if __name__ == "__main__":
